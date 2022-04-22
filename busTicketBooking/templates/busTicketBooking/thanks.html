@@ -1,0 +1,240 @@
+{% comment %}
+{% extends "busTicketBooking/base.html" %}
+{% load static %}
+{% block title %}Home{% endblock title %}
+
+{% block css %}
+
+{% endblock css %}
+
+
+<!DOCTYPE html>
+<html>
+<head></head>
+<body>
+{% for trip in trip_list %}
+    <p>
+        start: {{ trip.start_station }} des: {{ trip.destination }} date: {{ trip.start_time }} faka seat: {{ trip.seat }}
+    </p>
+{% endfor %}
+</body>
+
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+<style>
+
+#seat-row li {
+  display:inline;
+  list-style-type:none;
+}
+#seat li {
+    //display:inline;
+    list-style-type:none;
+}
+.button {
+    background-color: #ffffff;
+    border: 2px solid #101210;
+    padding: 15px 15px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+}
+p {
+    border: 1px solid gray;
+    background-color: #e4e7ed;
+    color: #0f0f0f;
+}
+</style>
+</head>
+
+<body>
+<script>
+    var seatInfo = JSON.parse("{{ seat_info|escapejs }}");
+    //var tripList =JSON.parse("{{ trip_list|escapejs }}");
+    //var str = JSON.stringify(tripList, null, 4); // (Optional) beautiful indented output.
+    //console.log(str); // Logs output to dev tools console.
+    var cnt = {};
+    $(document).ready(function(){
+        $('[data-toggle="tooltip"]').tooltip({
+            trigger : 'hover'
+        });
+    });
+
+    function myFunction(id) {
+        // if 4 seats have been chosen and it is new seat no more seat can be selected
+        var table = document.getElementById("selected-seat");
+        if(table.rows.length == 5 && cnt[id] == 1) {
+            alert("You have already booked 4 seats");
+            return;
+        }
+
+        changeColor(id);
+
+        // we only add row if it is new and total selected seats is less than 4
+        // if it is new its color will be change. so now cnt[id] = 0
+        if(table.rows.length < 5 && cnt[id] == 0)addRow(id, {{ trip.fare }});
+        else {
+            // we can deselect previously selected row
+            for(var i = 1; i < table.rows.length; i++) {
+                if(table.rows[i].cells[0].innerHTML == id) {
+                    table.deleteRow(i);
+                    break;
+                }
+            }
+        }
+        document.getElementById("total-fare").innerText = "Total Fare: " + (table.rows.length -1) * {{ trip.fare }} + " Taka";
+    }
+    function changeColor(id) {
+        var element = document.getElementById(id);
+        if(cnt[id] == 1) {
+            element.style.backgroundColor = "#09eb20";// green
+            cnt[id] = 0;
+        }
+        else {
+            element.style.backgroundColor = "#ffffff";// white
+            cnt[id] = 1;
+        }
+    }
+
+    function setColor(id, seatType) {
+        cnt[id] = 1;// 1 means available
+                    // 0 means you select it
+        var color;
+        var element = document.getElementById(id);
+        element.title = id ;
+        switch (seatType) {
+            case 'AVAILABLE':
+                color = "#ffffff";
+                element.addEventListener("click", function() {
+                    myFunction(id);
+                    /*// if 4 seats have been chosen no more seat can be selected
+                    if(document.getElementById("selected-seat").rows.length < 5) {
+                        myFunction(id);
+                    }*/
+                });
+                break;
+            case 'BOOKED':
+                color = "#e9f542";
+                break;
+            case 'SOLD':
+                color = "#d90804";
+                break;
+            case 'DISABLED':
+                color = "#59504f";
+                break;
+            default:
+                color = "#000000";
+        }
+        element.style.backgroundColor = color;
+    }
+    function addRow(content, morecontent)
+    {
+         if (!document.getElementsByTagName) return;
+         tabBody=document.getElementsByTagName("tbody").item(0);
+         row=document.createElement("tr");
+         cell1 = document.createElement("td");
+         cell2 = document.createElement("td");
+         textnode1=document.createTextNode(content);
+         textnode2=document.createTextNode(morecontent);
+         cell1.appendChild(textnode1);
+         cell2.appendChild(textnode2);
+         row.appendChild(cell1);
+         row.appendChild(cell2);
+         tabBody.appendChild(row);
+    }
+
+    function postToView( method='post') {
+        var params = {};
+
+        var table = document.getElementById("selected-seat");
+        for(var i = 1; i < table.rows.length; i++) {
+            params["seat" + i] = table.rows[i].cells[0].innerHTML;
+        }
+
+        const form = document.createElement('form');
+        form.method = method;
+        form.action = "{% url 'get_name' %}";
+        for (const key in params) {
+            if (params.hasOwnProperty(key)) {
+                const hiddenField = document.createElement('input');
+                hiddenField.type = 'hidden';
+                hiddenField.name = key;
+                hiddenField.value = params[key];
+                form.appendChild(hiddenField);
+            }
+        }
+        // trip
+        var hiddenField = document.createElement('input');
+        hiddenField.type = 'hidden';
+        hiddenField.name = 'trip_id';
+        hiddenField.value = '{{ trip.id }}';
+        form.appendChild(hiddenField);
+        // csrf
+        hiddenField = document.createElement('input');
+        hiddenField.type = 'hidden';
+        hiddenField.name = 'csrfmiddlewaretoken';
+        hiddenField.value = '{{ csrf_token }}'
+        form.appendChild(hiddenField);
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+</script>
+<div class="container-fluid">
+
+    <div class="col-sm-4" style="margin-top: 20px">
+        <ul id="seat">
+            {% for row in "ABCDEFGHIJ" %}
+                <li>
+                    <ul id="seat-row">
+                        {% if trip.bus.num_of_columns == 4 %}
+                            {% for col in "1234" %}
+                                <li><button data-toggle="tooltip" data-placement="top" id="{{ row|add:col }}" class="button"></button>
+                                <script>
+                                    id = "{{ row|add:col }}";
+                                    setColor(id, seatInfo[id]);
+                                </script>
+                                </li>
+                            {% endfor %}
+                        {% else %}
+                            {% for col in "123" %}
+                                <li><button data-toggle="tooltip" data-placement="top" id="{{ row|add:col }}" class="button"></button>
+                                <script>
+                                    id = "{{ row|add:col }}";
+                                    setColor(id, seatInfo[id]);
+                                </script>
+                                </li>
+                            {% endfor %}
+                        {% endif %}
+                    </ul>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+    <div class="col-sm-4" style="margin-top: 20px">
+        <table class="table" id="selected-seat">
+            <thead class="thead-dark">
+                <tr>
+                    <th scope="col">Seats</th>
+                    <th scope="col">Fare</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+        <p id="total-fare">Total Fare: 0 Euros</p>
+        <button id="save" class="button" onclick="postToView()"></button>
+
+    </div>
+</div>
+
+</body>
+</html>
+{% endcomment %}

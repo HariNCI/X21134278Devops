@@ -1,0 +1,709 @@
+{% extends "busTicketBooking/base.html" %}
+{% load static %}
+
+{% block title %}Trip Details{% endblock title %}
+
+{% block css %}
+    .container-fluid{
+        {% comment %}background-image: url({% static 'busTicketBooking/images/bus.jpg' %});{% endcomment %}
+        {% comment %}background-color: #faf5fa;{% endcomment %}
+        background-size: cover;
+    }
+
+    .row{
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+
+    #contain-title{
+        background-color: rgb(0,0,0); /* Fallback color */
+        background-color: rgba(0,0,0, 0.4);
+        border:1px solid rgba(0,0,0,0.1);
+        border-radius:3px;
+        color: white;
+        padding: 10px 0px 10px 10px;
+    }
+    #btn-modify{
+        width: 200px;
+        height: 40px;
+        background-color: red;
+        border-color: red;
+        color: white;
+        font-weight: bold;
+    }
+    #total{
+        color: white;
+        font-weight: bold;
+        font-size: 18px;
+    }
+    #btn-view-seats{
+        background-color: green;
+        border-color: green;
+        margin-top: 10px;
+        margin-bottom: 10px;
+        color: white;
+    }
+    #operator-bus-type{
+        color: green;
+        font-weight: bold;
+        font-size: 17px;
+    }
+    .u-list, #operator-list {
+        list-style-type: none;
+    }
+
+    #seat-row li {
+      display:inline;
+      list-style-type:none;
+    }
+    #seat li {
+        //display:inline;
+        list-style-type:none;
+    }
+    tr:nth-child(even) {
+          background-color: #f2f2f2;
+        }
+    .button {
+        background-color: #ffffff;
+        border: 1px solid #101210;
+        height: 25px;
+        width: 25px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        cursor: pointer;
+
+    }
+    @media only screen and (max-width: 800px) {
+        .button {
+            height: 12px;
+            width: 12px;
+        }
+        * {
+            font-size: 2vw;
+        }
+    }
+    @media only screen and (max-width: 300px) {
+        .button {
+            height: 8px;
+            width: 8px;
+        }
+        * {
+            font-size: 2vw;
+        }
+    }
+    p {
+        border: 1px solid gray;
+        background-color: #e4e7ed;
+        color: #0f0f0f;
+    }
+{% endblock css %}
+
+{% block content %}
+    <script>
+        var tripList =JSON.parse("{{ trip_list|escapejs }}");
+        var currentTripList = tripList;
+        var str = JSON.stringify(tripList, null, 4); // (Optional) beautiful indented output.
+        console.log(str);
+        // seat info
+        var tripSeatList = JSON.parse("{{ trip_seat_list|escapejs }}");
+        str = JSON.stringify(tripSeatList, null, 4); // (Optional) beautiful indented output.
+        //console.log(str);
+
+        var rowNumberOfCurrentSeatPlan = 1000;
+        var selectedTrip;
+        var cnt = {};
+        $(document).ready(function(){
+            $('[data-toggle="tooltip"]').tooltip({
+                trigger : 'hover'
+            });
+        });
+    </script>
+    <div class="container-fluid">
+		<div class="container">
+			<div class="row">
+				<div class="col-md-4" id="contain-title">
+				<span style="color: yellow;">ONWARD JOURNEY</span><br>
+				{{ start_station }} To {{ destination }} On {{ date_of_journey }}
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-md-4" id="total-bus"></div>
+				<div class="col-md-4" id="total-operator">Total Operators Found : {{ t }}</div>
+				<div class="col-md-4" id="total-seats">Total Seats Available : {{ b }}</div>
+
+			</div>
+		</div>
+
+        <div class="container">
+            <div class="row">
+                <div class="col-md-2" style="padding-top: 10px; padding-bottom: 20px;">
+                    <span id="operator-bus-type">Operator</span><br>
+                    <ul id="operator-list">
+                    </ul>
+                    <br>
+                    <span id="operator-bus-type">Bus Type</span><br>
+                    <input type="checkbox" name="ac" onclick="filterTripList()">AC<br>
+                    <input type="checkbox" name="nonac" onclick="filterTripList()">Non-AC
+                </div>
+                <div class="col-md-10">
+
+                <table id="trip-table" class="table table-condensed">
+                    <thead>
+                        <tr style="background-color: silver;">
+                            <th >Operator(Bus Type)</th>
+                            <th >Dep. Time</th>
+                            <th >Arr. Time</th>
+                            <th >Available seats</th>
+                            <th >Fare</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+    <script>
+        function showInitialInfo(tripList) {
+            // total bus
+            var element = document.getElementById("total-bus");
+            element.innerText = "Total Buses Found: " + tripList.length;
+
+            // total operator
+            var operator = {};
+            var numOfOperator = 0;
+            for(var i = 0; i < tripList.length; i++) {
+                var trip = tripList[i].fields;
+                if(operator[trip.bus[0]] == undefined) {
+                     numOfOperator += 1;
+                    operator[trip.bus[0]] = true;
+                }
+            }
+            element = document.getElementById("total-operator");
+            element.innerText = "Total Operator Found: " + numOfOperator;
+
+            //total seats available
+            var totalNumOfSeats = 0;
+            for(let i = 0; i < tripList.length; i++) {
+                const trip_id = tripList[i].pk;
+                totalNumOfSeats += getNumOfAvailableSeatsOfTrip(trip_id);
+            }
+            element = document.getElementById("total-seats");
+            element.innerText = "Total Seats Found: " + totalNumOfSeats;
+        }
+        showInitialInfo(tripList);
+        function getNumOfAvailableSeatsOfTrip(trip_id) {
+            var numOfAvailableSeats = 0;
+            for(let i = 0; i <tripSeatList.length; i++)
+            {
+                var tripSeat = tripSeatList[i].fields;
+                if(tripSeat.trip == trip_id && tripSeat.status == 'AVAILABLE') {
+                    numOfAvailableSeats += 1;
+                }
+            }
+            return numOfAvailableSeats;
+        }
+        function addRow(trip, trip_id)
+        {
+            if (!document.getElementsByTagName) return;
+            let tabBody = document.getElementsByTagName("tbody").item(0);
+            let row = document.createElement("tr");
+            row.style.marginTop = "50px";
+
+            // first col
+            let firstCol =
+                `<td width="40%"> ${trip.bus[0]} <br>
+                    ${trip.bus[1]}, ${((trip.bus[2] == true)? ' AC': ' NON AC')} <br>
+                    <span style="font-weight: bold;">Route:</span> ${trip.description}
+                 </td>`;
+            row.innerHTML = firstCol;
+
+            //second col
+            // time conversion
+            var timeIn24HourFormat = datetime_to_time(trip.start_time, 11);
+            var timeIn12HourFormat = convertFrom24To12Hour(timeIn24HourFormat);
+            let startTime = `<td style="vertical-align: middle;"> ${timeIn12HourFormat} </td>`
+            row.innerHTML += startTime;
+
+            //third col
+            timeIn24HourFormat = datetime_to_time(trip.end_time, 0);
+            timeIn12HourFormat = convertFrom24To12Hour(timeIn24HourFormat);
+            let endTime = '<td style="vertical-align: middle;">' + timeIn12HourFormat + '</td>'
+            row.innerHTML += endTime;
+
+            //fourth col
+            let seat = `<td style="vertical-align: middle;">${getNumOfAvailableSeatsOfTrip(trip_id)}</td>`
+            row.innerHTML += seat;
+
+            // last col
+            let lastCol =
+                `<td style="vertical-align: middle;">
+                    <span style="color: green;">${trip.fare} TK</span> <br>
+                    <button id="btn-view-seats" onClick="demoFunction(this)">view seats</button>
+                </td>`
+            row.innerHTML += lastCol;
+
+            tabBody.appendChild(row);
+        }
+        function populateTableForTrip(tripList) {
+            $("#trip-table tbody tr").remove();
+            for(var i = 0; i < tripList.length; i++)
+            {
+                const trip = tripList[i].fields;
+                const trip_id = tripList[i].pk;
+                addRow(trip, trip_id);
+            }
+        }
+        populateTableForTrip(tripList);
+        //2020-01-30T06:00:00Z
+        function datetime_to_time(datetime, startPosition) {
+            return datetime.substr(startPosition, 5);
+        }
+        function convertFrom24To12Hour(timeIn24HourFormat) {
+            var hour = timeIn24HourFormat.substr(0, 2);
+            var minute = timeIn24HourFormat.substr(3, 2);
+            const isAM = hour < 12 ? true: false;
+            hour %= 12;
+            if(hour == 0) {
+                hour = 12;
+            }
+            return hour + ':' + minute + (isAM ? 'AM': 'PM');
+        }
+        function joinWordsByUnderscore(word) {
+            var temp = word.split(" ");
+            return temp.join('_');
+        }
+        function getOperatorList() {
+            var operatorList = []
+            for(var i = 0; i < tripList.length; i++)
+            {
+                const trip = tripList[i].fields;
+                const operator = trip.bus[0];
+                operatorList.push(operator);
+            }
+            return Array.from(new Set(operatorList));
+        }
+        function addOperatorList(id) {
+            var uList = document.getElementById(id);
+            let operatorList = getOperatorList();
+            for(let i = 0; i < operatorList.length; i++) {
+                // create a list item for this operator and add them to uList
+                let list = '<li>' + '<input type="checkbox" name=' + joinWordsByUnderscore(operatorList[i]) + ' onclick="filterTripList()">' + operatorList[i] + '</li>'
+                uList.innerHTML += list;
+            }
+        }
+        addOperatorList("operator-list");
+        function filterTripList() {
+            var filteredTripList = [];
+            let operatorList = getOperatorList();
+
+            let elementOfAc = document.getElementsByName("ac")[0];
+            let elementOfNonAc = document.getElementsByName("nonac")[0];
+            var isOperatorChecked = false;
+            var isBusTypeChecked = false;
+            for(let i = 0; i < operatorList.length; i++) {
+                let operator = joinWordsByUnderscore(operatorList[i]);
+                let element = document.getElementsByName(operator)[0];
+                if(!element.checked) {
+                    continue;
+                }
+                isOperatorChecked = true;
+
+                for(let j = 0; j < tripList.length; j++)
+                {
+                    const trip = tripList[j].fields;
+                    let operator = joinWordsByUnderscore(trip.bus[0]);
+                    if(operator == element.name) {
+                        if( (elementOfAc.checked && elementOfNonAc.checked) || (!elementOfAc.checked && !elementOfNonAc.checked) ) {
+                            filteredTripList.push(tripList[j]);
+                        } else if( (elementOfAc.checked && trip.bus[2]) || (elementOfNonAc.checked && !trip.bus[2]) ) {
+                            filteredTripList.push(tripList[j]);
+                        }
+
+                    }
+                }
+            }
+            if(!isOperatorChecked) {
+                let busTypeList = ['ac', 'nonac'];
+                for(let i = 0; i < busTypeList.length; i++) {
+                    let element = document.getElementsByName(busTypeList[i])[0];
+                    if(!element.checked) {
+                        continue;
+                    }
+                    isBusTypeChecked = true;
+                    for(let j = 0; j < tripList.length; j++)
+                    {
+                        const trip = tripList[j].fields;
+                        if(trip.bus[2] == true && element.name == "ac") {
+                            filteredTripList.push(tripList[j]);
+                        } else if(trip.bus[2] == false && element.name == 'nonac') {
+                            filteredTripList.push(tripList[j]);
+                        }
+                    }
+                }
+            }
+
+            filteredTripList =  Array.from(new Set(filteredTripList));
+            if(filteredTripList.length == 0) {
+                if(isOperatorChecked || isBusTypeChecked) {
+                    populateTableForTrip(filteredTripList);
+                    showInitialInfo(filteredTripList);// we also need to update total bus/operator count
+                    currentTripList = filteredTripList;
+                } else {
+                    populateTableForTrip(tripList);
+                    showInitialInfo(tripList);
+                    currentTripList = tripList;
+                }
+            } else {
+                populateTableForTrip(filteredTripList);
+                showInitialInfo(filteredTripList);
+                currentTripList = filteredTripList;
+            }
+        }
+        function getClickedRowNumber(clickedRow) {
+            var table = document.getElementById("trip-table");
+            for(let i = 0; i < table.rows.length; i++) {
+                let row = table.rows[i];
+                if(row == clickedRow) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+        function getClickedRowFrom(rowNumber) {
+            var table = document.getElementById("trip-table");
+            return table.rows[rowNumber];
+        }
+        function demoFunction(element) {
+
+            var clickedRow = element.parentElement.parentElement;
+            let clickedRowNumber = getClickedRowNumber(clickedRow);
+            if(rowNumberOfCurrentSeatPlan < clickedRowNumber) {
+                clickedRowNumber -= 1;
+            }
+            var trip = currentTripList[clickedRowNumber - 1].fields;
+            selectedTrip = trip;
+            var trip_id = currentTripList[clickedRowNumber - 1].pk;
+            if(clickedRow.name == undefined) {
+                populateTableForTrip(currentTripList);
+                rowNumberOfCurrentSeatPlan = clickedRowNumber;
+                clickedRow = getClickedRowFrom(clickedRowNumber);
+                clickedRow.name = "clicked-row";
+                insertRowAtIndex(trip, trip_id, clickedRowNumber);
+            } else{
+                rowNumberOfCurrentSeatPlan = 1000;
+                clickedRow.name = undefined;
+                deleteRowFromIndex(clickedRowNumber);
+            }
+        }
+        function deleteRowFromIndex(clickedRowNumber) {
+            if (!document.getElementsByTagName) return;
+            let tabBody = document.getElementsByTagName("tbody").item(0);
+            tabBody.deleteRow(clickedRowNumber);
+        }
+        function insertRowAtIndex(trip, trip_id, rowIndex) {
+            if (!document.getElementsByTagName) return;
+            let tabBody = document.getElementsByTagName("tbody").item(0);
+            let row = tabBody.insertRow(rowIndex);
+            row.style.marginTop = "50px";
+            let rowHtml = `
+                <td colspan="2" style="padding-left:10px">
+                   <ul id="seat">
+                   </ul>
+                </td>
+                <td colspan="3">
+                    <table>
+                        <tr>
+                            <td><input type="button" class="button" disabled></td>
+                            <td style="padding-left: 5px;">Available</td>
+
+                            <td style="padding-left: 20px;"><input type="button" class="button" style="background-color:#e79ff5" disabled></td>
+                            <td style="padding-left: 5px;">Booked</td>
+
+                            <td style="padding-left: 20px;"><input type="button" class="button" style="background-color:#c76708" disabled></td>
+                            <td style="padding-left: 5px;">Sold</td>
+
+                            <td style="padding-left: 20px;"><input type="button" class="button" style="background-color:#b5b4b3" disabled></td>
+                            <td style="padding-left: 5px;">Disabled</td>
+
+                        </tr>
+                    </table>
+                    <table class="table" id="selected-seat">
+                        <thead class="thead-dark">
+                            <tr style="background-color: #e9e1eb">
+                                <th scope="col">Seats</th>
+                                <th scope="col">Fare</th>
+                            </tr>
+                        </thead>
+                        <tbody id="seat-status">
+                        </tbody>
+                    </table>
+                    <p id="total-fare" style="background-color: #e9e1eb">Total Fare: 0 Euro</p>
+                    <div id="min-select" class="alert alert-warning" role="alert" style="display:none">
+                          Please select at least one seat before continue
+                    </div>
+                    <input type="submit" style="color:white" id="continue" value="continue">
+                </td>
+                <td align="right">
+                    <button type="button" data-toggle="tooltip" data-placement="top" title="click me to close" id=close" onClick="closeSeatPlan(${rowIndex})">close
+                </td>`
+
+            row.innerHTML = rowHtml;
+            drawSeatPlan(trip);
+            initializeColor(trip_id);
+        }
+        function closeSeatPlan(rowIndex) {
+            if (!document.getElementsByTagName) return;
+            let tabBody = document.getElementsByTagName("tbody").item(0);
+            tabBody.deleteRow(rowIndex);
+            populateTableForTrip(currentTripList);
+        }
+        // related to seat plan function
+        function getColumns(col_num, regular_num_of_col) {
+            var columns = "12034";
+            switch(col_num) {
+                case 3:
+                    if(regular_num_of_col == 3) {
+                        columns = "1023";
+                    } else {
+                        columns = "10034";
+                    }
+                    break;
+                case 4:
+                    if(regular_num_of_col == 3) {
+                        columns = "1234";
+                    } else {
+                        columns = "12034";
+                    }
+                    break;
+                case 5:
+                    columns = "12534";
+                    break;
+                default:
+                    // nothing
+            }
+            return columns;
+        }
+        function drawSeatPlan(trip) {
+            //alert(trip);
+            let num_of_rows = trip.bus[4];
+            let num_of_col = trip.bus[5];
+
+            let col_in_first_row = trip.bus[6];
+            let col_in_last_row = trip.bus[7];
+
+            var rows = "ABCDEFGHI";
+            if(num_of_rows == 10) {
+                rows += "J";
+            }
+
+            let uList = document.getElementById("seat");
+            for(let i = 0; i < rows.length; i++) {
+                let row = rows[i];
+                var row_html = `<li>
+                                    <ul id="seat-row">
+                                `
+                var col_num = 4;
+                switch(i) {
+                    case 0:
+                        col_num = col_in_first_row;
+                        break;
+                    case rows.length - 1:
+                        col_num = col_in_last_row;
+                        break;
+                    default:
+                        col_num = num_of_col;
+                }
+                let columns = getColumns(col_num, num_of_col);
+                for(let col of columns) {
+                    let _id = row + col;
+
+                    let col_html =  `   <li>
+                                            <button data-toggle="tooltip" data-placement="top" title= ${_id} id=${_id} class="button"></button>
+                                        </li>
+                                    `
+
+
+                    row_html += col_html;
+                }
+                row_html += `
+                                    </ul>
+                                </li>
+                            `
+                uList.innerHTML += row_html;
+            }
+            let alertHtml = `<li>
+                                 <div id="max-select" class="alert alert-warning" role="alert" style="display:none">
+                                        Maximum 4 seats can be selected at a time!
+                                 </div>
+                             </li>`
+            uList.innerHTML += alertHtml;
+        }
+        function addRowForSeatStatus(seat_id, fare)
+        {
+             let tabBody = document.getElementById("seat-status");
+             row=document.createElement("tr");
+             cell1 = document.createElement("td");
+             cell2 = document.createElement("td");
+             textnode1=document.createTextNode(seat_id);
+             textnode2=document.createTextNode(fare);
+             cell1.appendChild(textnode1);
+             cell2.appendChild(textnode2);
+             row.appendChild(cell1);
+             row.appendChild(cell2);
+             tabBody.appendChild(row);
+        }
+        function selectSeat(id) {
+            // at least one seat is selected. so need to remove alert box
+            if($('#min-select').css('display') != 'none') {
+                $('#min-select').fadeOut();
+            }
+            // if 4 seats have been chosen and it is new seat no more seat can be selected
+            var table = document.getElementById("selected-seat");
+            if(table.rows.length == 5 && cnt[id] == 1) {
+                $('#max-select').show();
+                return;
+            }
+
+            changeColor(id);
+
+            // we only add row if it is new and total selected seats is less than 4
+            // if it is new its color will be change. so now cnt[id] = 0
+            if(table.rows.length < 5 && cnt[id] == 0)addRowForSeatStatus(id, selectedTrip.fare);
+            else {
+                // we can deselect previously selected row
+                for(var i = 1; i < table.rows.length; i++) {
+                    if(table.rows[i].cells[0].innerHTML == id) {
+                        table.deleteRow(i);
+                        // we need to remove alert box also
+                        if($('#max-select').css('display') != 'none') {
+                            $('#max-select').fadeOut();
+                        }
+                        break;
+                    }
+                }
+            }
+            document.getElementById("total-fare").innerText = "Total Fare: " + (table.rows.length -1) * selectedTrip.fare + " Euro";
+        }
+        function changeColor(id) {
+            var element = document.getElementById(id);
+            if(cnt[id] == 1) {
+                element.style.backgroundColor = "green";// green
+                cnt[id] = 0;
+            }
+            else {
+                element.style.backgroundColor = "#ffffff";// white
+                cnt[id] = 1;
+            }
+        }
+
+        function setColor(id, seatType) {
+            cnt[id] = 1;// 1 means available
+                        // 0 means you select it
+            var color;
+            var element = document.getElementById(id);
+            //element.title = id ;
+            switch (seatType) {
+                case 'AVAILABLE':
+                    color = "#ffffff";
+                    element.addEventListener("click", function() {
+                        selectSeat(id);
+                    });
+                    break;
+                case 'BOOKED':
+                    color = "#e79ff5";
+                    element.disabled = true;
+                    break;
+                case 'SOLD':
+                    color = "#c76708";
+                    element.disabled = true;
+                    break;
+                case 'DISABLED':
+                    color = "#b5b4b3";
+                    element.disabled = true;
+                    break;
+                default:
+                    color = "#000000";
+            }
+            element.style.backgroundColor = color;
+        }
+        function initializeColor(trip_id) {
+            // create empty space between seat column
+            for(let row of "ABCDEFGHIJ") {
+                let id = row + "0";
+                let element = document.getElementById(id);
+                if(element)element.style.visibility = "hidden";
+            }
+
+            for(let i = 0; i <tripSeatList.length; i++) {
+                let tripSeat = tripSeatList[i].fields;
+                if(tripSeat.trip == trip_id) {
+                    setColor(tripSeat.seat_no, tripSeat.status);
+                }
+            }
+            let continueButton = document.getElementById("continue");
+            if(continueButton) {
+                continueButton.addEventListener("click", function() {
+                    saveSeatStatus(trip_id);
+                });
+            }
+        }
+        function saveSeatStatus(trip_id, method='post') {
+            var bookedSeatList = [];
+
+            var table = document.getElementById("selected-seat");
+            if(table.rows.length <= 1) {
+                $('#min-select').show();
+                return;
+            }
+            var fare = 0;
+            for(var i = 1; i < table.rows.length; i++) {
+                bookedSeatList.push(table.rows[i].cells[0].innerHTML);
+                fare += parseInt(table.rows[i].cells[1].innerHTML);
+            }
+
+            var form = document.createElement('form');
+            form.method = method;
+            form.action = "{% url 'seat_status' %}";
+
+            // seat list
+            var hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = 'seat_list';
+            hiddenField.value = JSON.stringify(bookedSeatList);
+            form.appendChild(hiddenField);
+
+            // fare
+            var hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = 'total_fare';
+            hiddenField.value = fare.toString();
+            form.appendChild(hiddenField);
+
+            // trip
+            hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = 'trip_id';
+            hiddenField.value = trip_id;
+            form.appendChild(hiddenField);
+
+            // csrf
+            hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = 'csrfmiddlewaretoken';
+            hiddenField.value = '{{ csrf_token }}'
+            form.appendChild(hiddenField);
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+
+    </script>
+
+{% endblock content %}
